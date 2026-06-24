@@ -46,6 +46,11 @@ abstract class PaginationMem<ItemUniqueKey, ItemData> {
   /// Page number to fetch
   int get previousPageToFetch;
 
+  void upsertItem({
+    required ItemUniqueKey key,
+    required ItemData item,
+  });
+
   void clear();
 }
 

@@ -9,6 +9,7 @@ enum PaginationLoadState {
   loading,
   refreshing,
   loaded,
+  updated,
   allLoaded,
   nopages,
   error,
@@ -232,6 +233,15 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
   Future<void> refresh() async {
     debugPrint("Refreshing...");
     search(searchText.value);
+  }
+
+  void upsertItem({
+    required ItemUniqueKey key,
+    required ItemData item,
+  }) {
+    //state.value = PaginationLoadState.loading;
+    _mem.upsertItem(key: key, item: item);
+    state.value = PaginationLoadState.updated;
   }
 
   @override

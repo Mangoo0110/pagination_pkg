@@ -112,4 +112,16 @@ class InfinityScrollPaginationMem<ItemUniqueKey, ItemData> extends PaginationMem
     if(index < 0 || index >= _items.length) return true;
     return false;
   }
+  
+  @override
+  void upsertItem({required ItemUniqueKey key, required ItemData item}) {
+    if(_keyIndexMap.containsKey(key)) {
+      // Update the item
+      _items[_keyIndexMap[key]!] = item; 
+      return;
+    }
+    // Add new item
+    _items.add(item);
+    _keyIndexMap[key] = _items.length - 1; // 0 indexed
+  }
 }
