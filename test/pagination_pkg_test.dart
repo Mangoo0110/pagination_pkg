@@ -107,6 +107,19 @@ void main() {
       expect(mem.itemAt(0), 'ONE');
       expect(mem.itemAt(1), 'TWO');
     });
+
+    test('returns read-only item snapshots in display order', () {
+      final mem = InfinityScrollPaginationMem<int, String>(
+        perPageLimit: 2,
+        maxCapacity: 5,
+        onMemUpdate: () {},
+      );
+
+      mem.addNextPage({1: 'one', 2: 'two'});
+
+      expect(mem.items, ['one', 'two']);
+      expect(() => mem.items.add('three'), throwsUnsupportedError);
+    });
   });
 
   group('InfinityScrollPaginationController', () {
@@ -325,6 +338,54 @@ void main() {
         controller.dispose();
       },
     );
+
+    test('exposes read-only items for app-side filtering', () async {
+      final controller = InfinityScrollPaginationController<int, String>(
+        perPageLimit: 3,
+        maxCapacityCount: 10,
+        onDemandPageCall: ({required onDemandPage}) async {
+          return PaginationPage<int, String>(
+            page: onDemandPage.pageNo,
+            items: const {1: 'Ada', 2: 'Grace', 3: 'Alan'},
+          );
+        },
+      );
+
+      await controller.loadNextPage();
+
+      final filtered = controller.items
+          .where((name) => name.toLowerCase().startsWith('a'))
+          .toList();
+
+      expect(controller.items, ['Ada', 'Grace', 'Alan']);
+      expect(filtered, ['Ada', 'Alan']);
+      expect(() => controller.items.add('Margaret'), throwsUnsupportedError);
+
+      controller.dispose();
+    });
+
+    test('forwards query through refresh and next page requests', () async {
+      final queries = <String?>[];
+      final controller = InfinityScrollPaginationController<int, String>(
+        perPageLimit: 2,
+        maxCapacityCount: 10,
+        onDemandPageCall: ({required onDemandPage}) async {
+          queries.add(onDemandPage.query);
+          return PaginationPage<int, String>(
+            page: onDemandPage.pageNo,
+            items: {onDemandPage.pageNo: 'page-${onDemandPage.pageNo}'},
+          );
+        },
+      );
+
+      await controller.refreshWithQuery('ada');
+      await controller.loadNextPage();
+
+      expect(controller.searchText.value, 'ada');
+      expect(queries, ['ada', 'ada']);
+
+      controller.dispose();
+    });
   });
 
   group('PaginationPage', () {

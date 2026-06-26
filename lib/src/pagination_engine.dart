@@ -10,23 +10,41 @@ enum PaginationLoadState {
   loaded,
   updated,
   allLoaded,
+  noPages,
+  @Deprecated('Use noPages instead.')
   nopages,
   error,
 }
 
 sealed class OnDemandPage<T> {
   final T? cursor;
+  final String? query;
   final int limit;
   final int pageNo;
-  OnDemandPage({required this.limit, required this.pageNo, this.cursor});
+  OnDemandPage({
+    required this.limit,
+    required this.pageNo,
+    this.cursor,
+    this.query,
+  });
 }
 
 class LoadNextPage<ItemData> extends OnDemandPage<ItemData> {
-  LoadNextPage({required super.limit, required super.pageNo, super.cursor});
+  LoadNextPage({
+    required super.limit,
+    required super.pageNo,
+    super.cursor,
+    super.query,
+  });
 }
 
 class LoadPreviousPage<ItemData> extends OnDemandPage<ItemData> {
-  LoadPreviousPage({required super.limit, required super.pageNo, super.cursor});
+  LoadPreviousPage({
+    required super.limit,
+    required super.pageNo,
+    super.cursor,
+    super.query,
+  });
 }
 
 class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
@@ -81,6 +99,8 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
 
   int get length => _mem.length;
 
+  List<ItemData> get items => _mem.items;
+
   bool get isEmpty => _mem.isEmpty;
 
   @Deprecated('Use isEmpty instead.')
@@ -128,8 +148,11 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
     return page;
   }
 
-  /// Package does not support the debouncing mechanism anymore, its now up to the developer to handle it.
-  Future<void> search(String text) async {
+  /// Reloads the first page with the provided query.
+  ///
+  /// The package only stores and forwards the query. Matching/filtering rules
+  /// remain app-owned.
+  Future<void> refreshWithQuery(String text) async {
     if (state.value == PaginationLoadState.refreshing || _isRequestInFlight) {
       if (_isRequestInFlight) {
         _emitIssue(
@@ -150,6 +173,7 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
         limit: perPageLimit,
         pageNo: 1,
         cursor: null,
+        query: _activeQuery,
       ),
     );
     _logger.showLog(
@@ -161,16 +185,22 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
       _mem.addNextPage(page.items);
       state.value = _stateForPage(
         page,
-        emptyState: PaginationLoadState.nopages,
+        emptyState: PaginationLoadState.noPages,
       );
     } else if (state.value == PaginationLoadState.error) {
       notifyListeners();
       return;
     } else {
-      _logger.showLog("No items to add.. setting state to nopages");
-      state.value = PaginationLoadState.nopages;
+      _logger.showLog("No items to add.. setting state to noPages");
+      state.value = PaginationLoadState.noPages;
     }
     notifyListeners();
+  }
+
+  /// Package does not support the debouncing mechanism anymore, its now up to the developer to handle it.
+  @Deprecated('Use refreshWithQuery instead.')
+  Future<void> search(String text) async {
+    return refreshWithQuery(text);
   }
 
   /// Sets the state to [PaginationLoadState.refreshing]
@@ -206,11 +236,11 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
 
   /// Triggers [notifyListeners]
   void setNoPages() {
-    state.value = PaginationLoadState.nopages;
+    state.value = PaginationLoadState.noPages;
     notifyListeners();
   }
 
-  /// Checks if current state is [PaginationLoadState.allLoaded] or [PaginationLoadState.nopages].
+  /// Checks if current state is [PaginationLoadState.allLoaded] or [PaginationLoadState.noPages].
   bool _shouldTryLoadMore() {
     if (_isRequestInFlight) {
       _emitIssue(
@@ -223,7 +253,7 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
       return false;
     }
     if (state.value == PaginationLoadState.allLoaded ||
-        state.value == PaginationLoadState.nopages) {
+        state.value == PaginationLoadState.noPages) {
       _emitIssue(
         const PaginationIssue(
           message: 'Load more was skipped because no more pages are available.',
@@ -249,6 +279,7 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
         limit: perPageLimit,
         pageNo: _mem.nextPageToFetch,
         cursor: _mem.last,
+        query: _activeQuery,
       ),
     );
 
@@ -277,6 +308,7 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
         limit: perPageLimit,
         pageNo: _mem.previousPageToFetch,
         cursor: _mem.first,
+        query: _activeQuery,
       ),
     ); // requestData() methods also handles the error state
 
@@ -291,7 +323,7 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
 
   Future<void> refresh() async {
     _logger.showLog("Refreshing...");
-    await search(searchText.value);
+    await refreshWithQuery(searchText.value);
   }
 
   void upsertItem({required ItemUniqueKey key, required ItemData item}) {
@@ -312,6 +344,10 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
 
   void _clearError() {
     _latestError = null;
+  }
+
+  String? get _activeQuery {
+    return searchText.value.isEmpty ? null : searchText.value;
   }
 
   void _emitIssue(PaginationIssue issue) {

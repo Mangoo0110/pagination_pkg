@@ -1,6 +1,4 @@
-
 import 'package:flutter/material.dart';
-
 
 /// Page starts from 1.
 abstract class PaginationMem<ItemUniqueKey, ItemData> {
@@ -28,6 +26,9 @@ abstract class PaginationMem<ItemUniqueKey, ItemData> {
   /// Returns total number of items
   int get length;
 
+  /// Returns current in-memory items in display order.
+  List<ItemData> get items;
+
   /// Returns item at index
   ItemData? itemAt(int index);
 
@@ -46,12 +47,7 @@ abstract class PaginationMem<ItemUniqueKey, ItemData> {
   /// Page number to fetch
   int get previousPageToFetch;
 
-  void upsertItem({
-    required ItemUniqueKey key,
-    required ItemData item,
-  });
+  void upsertItem({required ItemUniqueKey key, required ItemData item});
 
   void clear();
 }
-
-

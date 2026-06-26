@@ -104,6 +104,9 @@ class InfinityScrollPaginationMem<ItemUniqueKey, ItemData>
   int get length => _items.length;
 
   @override
+  List<ItemData> get items => List.unmodifiable(_items);
+
+  @override
   int get nextPageToFetch {
     final knownItemsCount = _removedFromFront + _items.length;
     if (knownItemsCount == 0) return firstPageVal;
