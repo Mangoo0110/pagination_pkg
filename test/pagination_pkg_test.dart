@@ -157,6 +157,94 @@ void main() {
 
       controller.dispose();
     });
+
+    test(
+      'stores non-critical errors without clearing previous items',
+      () async {
+        var callCount = 0;
+        final controller = InfinityScrollPaginationController<int, String>(
+          perPageLimit: 2,
+          maxCapacityCount: 10,
+          onDemandPageCall: ({required onDemandPage}) async {
+            callCount++;
+            if (callCount == 1) {
+              return PaginationPage<int, String>(
+                page: onDemandPage.pageNo,
+                items: const {1: 'one'},
+              );
+            }
+            return PaginationError<int, String>(
+              page: onDemandPage.pageNo,
+              message: 'Network unavailable',
+            );
+          },
+        );
+
+        await controller.loadNextPage();
+        await controller.loadNextPage();
+
+        expect(controller.length, 1);
+        expect(controller.latestError?.message, 'Network unavailable');
+        expect(controller.latestError?.isCritical, isFalse);
+        expect(controller.state.value, PaginationLoadState.error);
+
+        controller.dispose();
+      },
+    );
+
+    test('clears previous items on critical errors', () async {
+      final controller = InfinityScrollPaginationController<int, String>(
+        items: const {1: 'one'},
+        perPageLimit: 2,
+        maxCapacityCount: 10,
+        onDemandPageCall: ({required onDemandPage}) async {
+          return PaginationError<int, String>(
+            page: onDemandPage.pageNo,
+            message: 'Data source changed',
+            isCritical: true,
+          );
+        },
+      );
+
+      await controller.loadNextPage();
+
+      expect(controller.length, 0);
+      expect(controller.latestError?.message, 'Data source changed');
+      expect(controller.latestError?.isCritical, isTrue);
+      expect(controller.state.value, PaginationLoadState.error);
+
+      controller.dispose();
+    });
+
+    test('clears latest error after a successful page load', () async {
+      var callCount = 0;
+      final controller = InfinityScrollPaginationController<int, String>(
+        perPageLimit: 2,
+        maxCapacityCount: 10,
+        onDemandPageCall: ({required onDemandPage}) async {
+          callCount++;
+          if (callCount == 1) {
+            return PaginationError<int, String>(
+              page: onDemandPage.pageNo,
+              message: 'Temporary failure',
+            );
+          }
+          return PaginationPage<int, String>(
+            page: onDemandPage.pageNo,
+            items: const {1: 'one'},
+          );
+        },
+      );
+
+      await controller.loadNextPage();
+      await controller.loadNextPage();
+
+      expect(controller.latestError, isNull);
+      expect(controller.length, 1);
+      expect(controller.state.value, PaginationLoadState.loaded);
+
+      controller.dispose();
+    });
   });
 
   group('PaginationPage', () {

@@ -57,8 +57,11 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
     PaginationLoadState.idle,
   );
   final ValueNotifier<String> searchText = ValueNotifier('');
+  PaginationError<ItemUniqueKey, ItemData>? _latestError;
 
   ValueNotifier<PaginationLoadState> get state => _state;
+
+  PaginationError<ItemUniqueKey, ItemData>? get latestError => _latestError;
 
   /// Default is set to 10 by the constructor.
   /// This is the number of items to be fetched per page. You should maintain this number.
@@ -98,6 +101,7 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
       _logger.showLog(
         "Fetched page: ${res.page}, items-length: ${res.items.length}",
       );
+      _clearError();
       page = res;
     }
     return page;
@@ -144,6 +148,7 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
   ///
   /// Triggers [notifyListeners], as memory along with state has changed
   void setRefresh() {
+    _clearError();
     _mem.clear();
     state.value = PaginationLoadState.refreshing;
     notifyListeners();
@@ -152,6 +157,10 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
   /// Sets the state to [PaginationLoadState.loading]
   /// #### NOTE: This does not trigger [notifyListeners]
   void setError({PaginationError<ItemUniqueKey, ItemData>? error}) {
+    _latestError = error;
+    if (error?.isCritical ?? false) {
+      _mem.clear();
+    }
     state.value = PaginationLoadState.error;
     notifyListeners();
   }
@@ -253,6 +262,10 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
     if (page.items.isEmpty) return emptyState;
     if (page.hasMore == false) return PaginationLoadState.allLoaded;
     return PaginationLoadState.loaded;
+  }
+
+  void _clearError() {
+    _latestError = null;
   }
 
   @override
