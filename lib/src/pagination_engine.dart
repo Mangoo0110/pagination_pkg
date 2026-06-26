@@ -66,8 +66,6 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
   /// or, previous page or skipped depending on the situation.
   final int perPageLimit;
 
-  DateTime _lastFetchTime = DateTime.now();
-
   int get totalItemsCount => _mem.length;
 
   ItemData? itemAt(int index) => _mem.itemAt(index);
@@ -91,18 +89,17 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
 
     // });
     final res = await onDemandPageCall(onDemandPage: onDemandPage);
-    if (res is PaginationError) {
+    if (res is PaginationError<ItemUniqueKey, ItemData>) {
       _logger.showLog(
-        "Error fetching page: ${res.page}, message: ${(res as PaginationError).message}",
+        "Error fetching page: ${res.page}, message: ${res.message}",
       );
-      setError(error: res as PaginationError);
+      setError(error: res);
     } else if (res is PaginationPage<ItemUniqueKey, ItemData>) {
       _logger.showLog(
         "Fetched page: ${res.page}, items-length: ${res.items.length}",
       );
       page = res;
     }
-    _lastFetchTime = DateTime.now();
     return page;
   }
 
@@ -128,7 +125,10 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
     if (page != null) {
       _logger.showLog("Adding items: ${page.items.length}");
       _mem.addNextPage(page.items);
-      state.value = PaginationLoadState.loaded;
+      state.value = _stateForPage(
+        page,
+        emptyState: PaginationLoadState.nopages,
+      );
     } else if (state.value == PaginationLoadState.error) {
       notifyListeners();
       return;
@@ -151,7 +151,7 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
 
   /// Sets the state to [PaginationLoadState.loading]
   /// #### NOTE: This does not trigger [notifyListeners]
-  setError({PaginationError? error}) {
+  void setError({PaginationError<ItemUniqueKey, ItemData>? error}) {
     state.value = PaginationLoadState.error;
     notifyListeners();
   }
@@ -168,14 +168,12 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Checks if current state is [PaginationLoadState.allLoaded] or [PaginationLoadState.nopages] and last fetch time is less than 3.5 minutes
+  /// Checks if current state is [PaginationLoadState.allLoaded] or [PaginationLoadState.nopages].
   bool _shouldTryLoadMore() {
-    if ((state.value == PaginationLoadState.allLoaded ||
-            state.value == PaginationLoadState.nopages) &&
-        _lastFetchTime.difference(DateTime.now()).inMilliseconds.abs() <
-            (1000 * 60 * 3.5)) {
+    if (state.value == PaginationLoadState.allLoaded ||
+        state.value == PaginationLoadState.nopages) {
       _logger.showLog(
-        "Should not try to load more.. ${_lastFetchTime.difference(DateTime.now()).inMilliseconds.abs()}ms and state: ${state.value}",
+        "Should not try to load more because state is ${state.value}",
       );
       return false;
     }
@@ -204,11 +202,7 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
       return;
     }
     _mem.addNextPage(res.items);
-    if (res.items.isEmpty) {
-      state.value = PaginationLoadState.allLoaded;
-    } else {
-      state.value = PaginationLoadState.loaded;
-    }
+    state.value = _stateForPage(res, emptyState: PaginationLoadState.allLoaded);
     notifyListeners();
   }
 
@@ -236,11 +230,7 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
       return;
     }
     _mem.addFrontPage(res.items);
-    if (res.items.isEmpty) {
-      state.value = PaginationLoadState.allLoaded;
-    } else {
-      state.value = PaginationLoadState.loaded;
-    }
+    state.value = _stateForPage(res, emptyState: PaginationLoadState.allLoaded);
     notifyListeners();
   }
 
@@ -256,11 +246,20 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
     notifyListeners();
   }
 
+  PaginationLoadState _stateForPage(
+    PaginationPage<ItemUniqueKey, ItemData> page, {
+    required PaginationLoadState emptyState,
+  }) {
+    if (page.items.isEmpty) return emptyState;
+    if (page.hasMore == false) return PaginationLoadState.allLoaded;
+    return PaginationLoadState.loaded;
+  }
+
   @override
   void dispose() {
-    super.dispose();
     _mem.clear();
     _state.dispose();
     searchText.dispose();
+    super.dispose();
   }
 }

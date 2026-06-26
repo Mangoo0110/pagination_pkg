@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pagination_pkg/pagination_pkg.dart';
 import 'package:pagination_pkg/src/cache/infinity_scroll_pagination_mem.dart';
 
 void main() {
@@ -103,6 +104,75 @@ void main() {
       expect(updateCount, 4);
       expect(mem.itemAt(0), 'ONE');
       expect(mem.itemAt(1), 'TWO');
+    });
+  });
+
+  group('InfinityScrollPaginationController', () {
+    test('stops loading next pages when response hasMore is false', () async {
+      final requestedPages = <int>[];
+      final controller = InfinityScrollPaginationController<int, String>(
+        perPageLimit: 2,
+        maxCapacityCount: 10,
+        onDemandPageCall: ({required onDemandPage}) async {
+          requestedPages.add(onDemandPage.pageNo);
+          return PaginationPage<int, String>(
+            page: onDemandPage.pageNo,
+            items: {onDemandPage.pageNo: 'page-${onDemandPage.pageNo}'},
+            hasMore: false,
+            totalPages: onDemandPage.pageNo,
+          );
+        },
+      );
+
+      await controller.loadNextPage();
+      await controller.loadNextPage();
+
+      expect(requestedPages, [1]);
+      expect(controller.length, 1);
+      expect(controller.state.value, PaginationLoadState.allLoaded);
+
+      controller.dispose();
+    });
+
+    test('keeps empty page as a terminal page', () async {
+      final requestedPages = <int>[];
+      final controller = InfinityScrollPaginationController<int, String>(
+        perPageLimit: 2,
+        maxCapacityCount: 10,
+        onDemandPageCall: ({required onDemandPage}) async {
+          requestedPages.add(onDemandPage.pageNo);
+          return PaginationPage<int, String>(
+            page: onDemandPage.pageNo,
+            items: const {},
+          );
+        },
+      );
+
+      await controller.loadNextPage();
+      await controller.loadNextPage();
+
+      expect(requestedPages, [1]);
+      expect(controller.length, 0);
+      expect(controller.state.value, PaginationLoadState.allLoaded);
+
+      controller.dispose();
+    });
+  });
+
+  group('PaginationPage', () {
+    test('exposes generic pagination metadata', () {
+      final page = PaginationPage<int, String>(
+        page: 2,
+        items: const {1: 'one'},
+        hasMore: false,
+        totalItems: 3,
+        totalPages: 2,
+      );
+
+      expect(page.total, 1);
+      expect(page.reachedEnd, isTrue);
+      expect(page.totalItems, 3);
+      expect(page.totalPages, 2);
     });
   });
 }
