@@ -1,6 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import '../debouncer.dart';
+import 'package:pagination_pkg/src/logger.dart';
 import 'cache/pagination_mem.dart';
 import 'page_fetch_response.dart';
 
@@ -36,9 +35,14 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
     required PaginationMem<ItemUniqueKey, ItemData> mem,
     required this.onDemandPageCall,
     this.perPageLimit = 10,
-  }) : _mem = mem {
+    bool shouldLog = false,
+    LoggerColor color = LoggerColor.green,
+  }) : _mem = mem, _logger = Logger(log: shouldLog, loggerColor: color) {
     if (items != null) _mem.addNextPage(items);
   }
+
+  /// Logger
+  final Logger _logger;
 
   /// Cache memory
   final PaginationMem<ItemUniqueKey, ItemData> _mem;
@@ -56,10 +60,10 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
   ValueNotifier<PaginationLoadState> get state => _state;
 
   /// Default is set to 10 by the constructor.
-  /// This is the number of items to be fetched per page. You should maintain this number. If you return more they will be added to the next page
-  /// or previous page or skipped depending on the situation.
+  /// This is the number of items to be fetched per page. You should maintain this number. 
+  /// If you return more on the page fetch call, they will be added to the next page
+  /// or, previous page or skipped depending on the situation.
   final int perPageLimit;
-  Debouncer debouncer = Debouncer(milliseconds: 1000);
 
   DateTime _lastFetchTime = DateTime.now();
 
@@ -84,21 +88,22 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
     // });
     final res = await onDemandPageCall(onDemandPage: onDemandPage);
     if (res is PaginationError) {
-      debugPrint(
-        "Error fetching page: ${res.page} with message: ${(res as PaginationError).message}",
+      _logger.showLog(
+        "Error fetching page: ${res.page}, message: ${(res as PaginationError).message}",
       );
       setError(error: res as PaginationError);
     } else if (res is PaginationPage<ItemUniqueKey, ItemData>) {
-      debugPrint("Fetched page: ${res.page} with items: ${res.items}");
+      _logger.showLog("Fetched page: ${res.page}, items-length: ${res.items.length}");
       page = res;
     }
     _lastFetchTime = DateTime.now();
     return page;
   }
 
+
+  /// Package does not support the debouncing mechanism anymore, its now up to the developer to handle it.
   void search(String text) async {
-    debouncer.run(() async {
-      if (state.value == PaginationLoadState.refreshing) {
+    if (state.value == PaginationLoadState.refreshing) {
         return;
       }
       searchText.value = text;
@@ -111,22 +116,22 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
           cursor: null,
         ),
       );
-      debugPrint(
+      _logger.showLog(
         "Search result for text: $text is page: ${page?.page} with items count: ${page?.items.length}",
       );
+
       if (page != null) {
-        debugPrint("Adding items: ${page.items.length}");
+        _logger.showLog("Adding items: ${page.items.length}");
         _mem.addNextPage(page.items);
         state.value = PaginationLoadState.loaded;
       } else if (state.value == PaginationLoadState.error) {
         notifyListeners();
         return;
       } else {
-        debugPrint("No items to add.. setting state to nopages");
+        _logger.showLog("No items to add.. setting state to nopages");
         state.value = PaginationLoadState.nopages;
       }
       notifyListeners();
-    });
   }
 
   /// Sets the state to [PaginationLoadState.refreshing]
@@ -164,7 +169,7 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
             state.value == PaginationLoadState.nopages) &&
         _lastFetchTime.difference(DateTime.now()).inMilliseconds.abs() <
             (1000 * 60 * 3.5)) {
-      debugPrint(
+      _logger.showLog(
         "Should not try to load more.. ${_lastFetchTime.difference(DateTime.now()).inMilliseconds.abs()}ms and state: ${state.value}",
       );
       return false;
@@ -173,65 +178,68 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
   }
 
   Future<void> loadNextPage() async {
+    // Guard
     if (!_shouldTryLoadMore()) {
       return;
     }
 
-    await debouncer.run(() async {
-      state.value = PaginationLoadState.loading;
-      final res = await requestData(
-        onDemandPage: LoadNextPage(
-          limit: perPageLimit,
-          pageNo: _mem.nextPageToFetch,
-          cursor: _mem.last,
-        ),
-      );
+    // Set state to loading
+    state.value = PaginationLoadState.loading;
+    // Fetch next page
+    final res = await requestData(
+      onDemandPage: LoadNextPage(
+        limit: perPageLimit,
+        pageNo: _mem.nextPageToFetch,
+        cursor: _mem.last,
+      ),
+    );
 
-      if (res == null) {
-        notifyListeners();
-        return;
-      }
-      _mem.addNextPage(res.items);
-      if (res.items.isEmpty) {
-        state.value = PaginationLoadState.allLoaded;
-      } else {
-        state.value = PaginationLoadState.loaded;
-      }
+    if (res == null) {
       notifyListeners();
-    });
+      return;
+    }
+    _mem.addNextPage(res.items);
+    if (res.items.isEmpty) {
+      state.value = PaginationLoadState.allLoaded;
+    } else {
+      state.value = PaginationLoadState.loaded;
+    }
+    notifyListeners();
   }
 
   Future<void> loadPreviousPage() async {
+    // Guard
     if (!_shouldTryLoadMore() ||
         (_mem.previousPageToFetch < _mem.firstPageVal)) {
       return;
     }
 
-    debouncer.run(() async {
-      debugPrint("Previous page(${_mem.previousPageToFetch}) in demand...");
-      final res = await requestData(
-        onDemandPage: LoadPreviousPage(
-          limit: perPageLimit,
-          pageNo: _mem.previousPageToFetch,
-          cursor: _mem.first,
-        ),
-      );
-      if (res == null) {
-        notifyListeners();
-        return;
-      }
-      _mem.addFrontPage(res.items);
-      if (res.items.isEmpty) {
-        state.value = PaginationLoadState.allLoaded;
-      } else {
-        state.value = PaginationLoadState.loaded;
-      }
+    // Set state to loading
+    state.value = PaginationLoadState.loading;
+    // Fetch previous page
+    final res = await requestData( // requestData() methods holds the logic for fetching data
+      onDemandPage: LoadPreviousPage(
+        limit: perPageLimit,
+        pageNo: _mem.previousPageToFetch,
+        cursor: _mem.first,
+      ),
+    ); // requestData() methods also handles the error state
+
+    if (res == null) {
       notifyListeners();
-    });
+      return;
+    }
+    _mem.addFrontPage(res.items);
+    if (res.items.isEmpty) {
+      state.value = PaginationLoadState.allLoaded;
+    } else {
+      state.value = PaginationLoadState.loaded;
+    }
+    notifyListeners();
   }
 
   Future<void> refresh() async {
-    debugPrint("Refreshing...");
+    _logger.showLog("Refreshing...");
     search(searchText.value);
   }
 
