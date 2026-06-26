@@ -58,10 +58,13 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
   );
   final ValueNotifier<String> searchText = ValueNotifier('');
   PaginationError<ItemUniqueKey, ItemData>? _latestError;
+  bool _isRequestInFlight = false;
 
   ValueNotifier<PaginationLoadState> get state => _state;
 
   PaginationError<ItemUniqueKey, ItemData>? get latestError => _latestError;
+
+  bool get isRequestInFlight => _isRequestInFlight;
 
   /// Default is set to 10 by the constructor.
   /// This is the number of items to be fetched per page. You should maintain this number.
@@ -87,29 +90,41 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
   Future<PaginationPage<ItemUniqueKey, ItemData>?> requestData({
     required OnDemandPage<ItemData> onDemandPage,
   }) async {
+    if (_isRequestInFlight) {
+      _logger.showLog(
+        "Skipping page request because another request is already in flight",
+      );
+      return null;
+    }
+
+    _isRequestInFlight = true;
     PaginationPage<ItemUniqueKey, ItemData>? page;
     // await debouncer.run(() async {
 
     // });
-    final res = await onDemandPageCall(onDemandPage: onDemandPage);
-    if (res is PaginationError<ItemUniqueKey, ItemData>) {
-      _logger.showLog(
-        "Error fetching page: ${res.page}, message: ${res.message}",
-      );
-      setError(error: res);
-    } else if (res is PaginationPage<ItemUniqueKey, ItemData>) {
-      _logger.showLog(
-        "Fetched page: ${res.page}, items-length: ${res.items.length}",
-      );
-      _clearError();
-      page = res;
+    try {
+      final res = await onDemandPageCall(onDemandPage: onDemandPage);
+      if (res is PaginationError<ItemUniqueKey, ItemData>) {
+        _logger.showLog(
+          "Error fetching page: ${res.page}, message: ${res.message}",
+        );
+        setError(error: res);
+      } else if (res is PaginationPage<ItemUniqueKey, ItemData>) {
+        _logger.showLog(
+          "Fetched page: ${res.page}, items-length: ${res.items.length}",
+        );
+        _clearError();
+        page = res;
+      }
+    } finally {
+      _isRequestInFlight = false;
     }
     return page;
   }
 
   /// Package does not support the debouncing mechanism anymore, its now up to the developer to handle it.
-  void search(String text) async {
-    if (state.value == PaginationLoadState.refreshing) {
+  Future<void> search(String text) async {
+    if (state.value == PaginationLoadState.refreshing || _isRequestInFlight) {
       return;
     }
     searchText.value = text;
@@ -179,6 +194,12 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
 
   /// Checks if current state is [PaginationLoadState.allLoaded] or [PaginationLoadState.nopages].
   bool _shouldTryLoadMore() {
+    if (_isRequestInFlight) {
+      _logger.showLog(
+        "Should not try to load more because another request is already in flight",
+      );
+      return false;
+    }
     if (state.value == PaginationLoadState.allLoaded ||
         state.value == PaginationLoadState.nopages) {
       _logger.showLog(
@@ -245,7 +266,7 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
 
   Future<void> refresh() async {
     _logger.showLog("Refreshing...");
-    search(searchText.value);
+    await search(searchText.value);
   }
 
   void upsertItem({required ItemUniqueKey key, required ItemData item}) {

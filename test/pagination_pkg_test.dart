@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pagination_pkg/pagination_pkg.dart';
 import 'package:pagination_pkg/src/cache/infinity_scroll_pagination_mem.dart';
@@ -240,6 +242,39 @@ void main() {
       await controller.loadNextPage();
 
       expect(controller.latestError, isNull);
+      expect(controller.length, 1);
+      expect(controller.state.value, PaginationLoadState.loaded);
+
+      controller.dispose();
+    });
+
+    test('prevents duplicate next-page requests while loading', () async {
+      var callCount = 0;
+      final completer = Completer<PageFetchResponse<int, String>>();
+      final controller = InfinityScrollPaginationController<int, String>(
+        perPageLimit: 2,
+        maxCapacityCount: 10,
+        onDemandPageCall: ({required onDemandPage}) {
+          callCount++;
+          return completer.future;
+        },
+      );
+
+      final firstLoad = controller.loadNextPage();
+
+      expect(controller.isRequestInFlight, isTrue);
+
+      final secondLoad = controller.loadNextPage();
+
+      expect(callCount, 1);
+
+      completer.complete(
+        PaginationPage<int, String>(page: 1, items: const {1: 'one'}),
+      );
+
+      await Future.wait([firstLoad, secondLoad]);
+
+      expect(controller.isRequestInFlight, isFalse);
       expect(controller.length, 1);
       expect(controller.state.value, PaginationLoadState.loaded);
 
