@@ -1,4 +1,6 @@
 
+import 'package:flutter/foundation.dart';
+
 class Logger {
   const Logger({this.log = false, this.loggerColor = LoggerColor.white});
   final bool log;
@@ -6,7 +8,7 @@ class Logger {
 
   void showLog(String message) {
     if (log) {
-      showLog('\x1B[${loggerColor.value}m$message\x1B[0m');
+      debugPrint('\x1B[${loggerColor.value}m$message\x1B[0m');
     }
   }
 }
