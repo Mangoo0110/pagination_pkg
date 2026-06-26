@@ -164,9 +164,11 @@ void main() {
       'stores non-critical errors without clearing previous items',
       () async {
         var callCount = 0;
+        final issues = <PaginationIssue>[];
         final controller = InfinityScrollPaginationController<int, String>(
           perPageLimit: 2,
           maxCapacityCount: 10,
+          onIssue: issues.add,
           onDemandPageCall: ({required onDemandPage}) async {
             callCount++;
             if (callCount == 1) {
@@ -188,6 +190,8 @@ void main() {
         expect(controller.length, 1);
         expect(controller.latestError?.message, 'Network unavailable');
         expect(controller.latestError?.isCritical, isFalse);
+        expect(issues.single.label, PaginationIssueLabel.error);
+        expect(issues.single.message, 'Network unavailable');
         expect(controller.state.value, PaginationLoadState.error);
 
         controller.dispose();
@@ -195,10 +199,12 @@ void main() {
     );
 
     test('clears previous items on critical errors', () async {
+      final issues = <PaginationIssue>[];
       final controller = InfinityScrollPaginationController<int, String>(
         items: const {1: 'one'},
         perPageLimit: 2,
         maxCapacityCount: 10,
+        onIssue: issues.add,
         onDemandPageCall: ({required onDemandPage}) async {
           return PaginationError<int, String>(
             page: onDemandPage.pageNo,
@@ -213,6 +219,8 @@ void main() {
       expect(controller.length, 0);
       expect(controller.latestError?.message, 'Data source changed');
       expect(controller.latestError?.isCritical, isTrue);
+      expect(issues.single.label, PaginationIssueLabel.critical);
+      expect(issues.single.message, 'Data source changed');
       expect(controller.state.value, PaginationLoadState.error);
 
       controller.dispose();
@@ -251,9 +259,11 @@ void main() {
     test('prevents duplicate next-page requests while loading', () async {
       var callCount = 0;
       final completer = Completer<PageFetchResponse<int, String>>();
+      final issues = <PaginationIssue>[];
       final controller = InfinityScrollPaginationController<int, String>(
         perPageLimit: 2,
         maxCapacityCount: 10,
+        onIssue: issues.add,
         onDemandPageCall: ({required onDemandPage}) {
           callCount++;
           return completer.future;
@@ -267,6 +277,11 @@ void main() {
       final secondLoad = controller.loadNextPage();
 
       expect(callCount, 1);
+      expect(issues.single.label, PaginationIssueLabel.warning);
+      expect(
+        issues.single.message,
+        'Load more was skipped because a page request is already running.',
+      );
 
       completer.complete(
         PaginationPage<int, String>(page: 1, items: const {1: 'one'}),
@@ -280,6 +295,36 @@ void main() {
 
       controller.dispose();
     });
+
+    test(
+      'emits an info issue when loading after all pages are loaded',
+      () async {
+        final issues = <PaginationIssue>[];
+        final controller = InfinityScrollPaginationController<int, String>(
+          perPageLimit: 2,
+          maxCapacityCount: 10,
+          onIssue: issues.add,
+          onDemandPageCall: ({required onDemandPage}) async {
+            return PaginationPage<int, String>(
+              page: onDemandPage.pageNo,
+              items: const {1: 'one'},
+              hasMore: false,
+            );
+          },
+        );
+
+        await controller.loadNextPage();
+        await controller.loadNextPage();
+
+        expect(issues.single.label, PaginationIssueLabel.info);
+        expect(
+          issues.single.message,
+          'Load more was skipped because no more pages are available.',
+        );
+
+        controller.dispose();
+      },
+    );
   });
 
   group('PaginationPage', () {
@@ -296,6 +341,21 @@ void main() {
       expect(page.reachedEnd, isTrue);
       expect(page.totalItems, 3);
       expect(page.totalPages, 2);
+    });
+
+    test('labels errors from severity', () {
+      final error = PaginationError<int, String>(
+        page: 1,
+        message: 'Temporary failure',
+      );
+      final criticalError = PaginationError<int, String>(
+        page: 1,
+        message: 'Data changed',
+        isCritical: true,
+      );
+
+      expect(error.label, PaginationIssueLabel.error);
+      expect(criticalError.label, PaginationIssueLabel.critical);
     });
   });
 }

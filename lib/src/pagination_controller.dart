@@ -21,6 +21,7 @@ class InfinityScrollPaginationController<ItemUniqueKey, ItemData>
     super.items,
     super.perPageLimit,
     required super.onDemandPageCall,
+    super.onIssue,
     required int maxCapacityCount,
   }) : super(
          mem: InfinityScrollPaginationMem<ItemUniqueKey, ItemData>(

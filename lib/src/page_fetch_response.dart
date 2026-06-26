@@ -3,6 +3,28 @@ sealed class PageFetchResponse<ItemUniqueKey, ItemData> {
   const PageFetchResponse({required this.page});
 }
 
+enum PaginationIssueLabel { info, warning, error, critical }
+
+class PaginationIssue {
+  const PaginationIssue({
+    required this.message,
+    required this.label,
+    this.page,
+  });
+
+  factory PaginationIssue.fromError(PaginationError error) {
+    return PaginationIssue(
+      message: error.message,
+      label: error.label,
+      page: error.page,
+    );
+  }
+
+  final String message;
+  final PaginationIssueLabel label;
+  final int? page;
+}
+
 class PaginationPage<ItemUniqueKey, ItemData>
     extends PageFetchResponse<ItemUniqueKey, ItemData> {
   final Map<ItemUniqueKey, ItemData> items;
@@ -40,4 +62,10 @@ class PaginationError<ItemUniqueKey, ItemData>
     required this.message,
     this.isCritical = false,
   });
+
+  PaginationIssueLabel get label {
+    return isCritical
+        ? PaginationIssueLabel.critical
+        : PaginationIssueLabel.error;
+  }
 }

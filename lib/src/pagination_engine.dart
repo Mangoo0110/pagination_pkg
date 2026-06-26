@@ -34,6 +34,7 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
     Map<ItemUniqueKey, ItemData>? items,
     required PaginationMem<ItemUniqueKey, ItemData> mem,
     required this.onDemandPageCall,
+    this.onIssue,
     this.perPageLimit = 10,
     bool shouldLog = false,
     LoggerColor color = LoggerColor.green,
@@ -52,6 +53,8 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
     required OnDemandPage<ItemData> onDemandPage,
   })
   onDemandPageCall;
+
+  final void Function(PaginationIssue issue)? onIssue;
 
   final ValueNotifier<PaginationLoadState> _state = ValueNotifier(
     PaginationLoadState.idle,
@@ -91,8 +94,11 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
     required OnDemandPage<ItemData> onDemandPage,
   }) async {
     if (_isRequestInFlight) {
-      _logger.showLog(
-        "Skipping page request because another request is already in flight",
+      _emitIssue(
+        const PaginationIssue(
+          message: 'A page request is already running.',
+          label: PaginationIssueLabel.warning,
+        ),
       );
       return null;
     }
@@ -125,6 +131,15 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
   /// Package does not support the debouncing mechanism anymore, its now up to the developer to handle it.
   Future<void> search(String text) async {
     if (state.value == PaginationLoadState.refreshing || _isRequestInFlight) {
+      if (_isRequestInFlight) {
+        _emitIssue(
+          const PaginationIssue(
+            message:
+                'Search was skipped because a page request is already running.',
+            label: PaginationIssueLabel.info,
+          ),
+        );
+      }
       return;
     }
     searchText.value = text;
@@ -176,6 +191,9 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
     if (error?.isCritical ?? false) {
       _mem.clear();
     }
+    if (error != null) {
+      _emitIssue(PaginationIssue.fromError(error));
+    }
     state.value = PaginationLoadState.error;
     notifyListeners();
   }
@@ -195,15 +213,22 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
   /// Checks if current state is [PaginationLoadState.allLoaded] or [PaginationLoadState.nopages].
   bool _shouldTryLoadMore() {
     if (_isRequestInFlight) {
-      _logger.showLog(
-        "Should not try to load more because another request is already in flight",
+      _emitIssue(
+        const PaginationIssue(
+          message:
+              'Load more was skipped because a page request is already running.',
+          label: PaginationIssueLabel.warning,
+        ),
       );
       return false;
     }
     if (state.value == PaginationLoadState.allLoaded ||
         state.value == PaginationLoadState.nopages) {
-      _logger.showLog(
-        "Should not try to load more because state is ${state.value}",
+      _emitIssue(
+        const PaginationIssue(
+          message: 'Load more was skipped because no more pages are available.',
+          label: PaginationIssueLabel.info,
+        ),
       );
       return false;
     }
@@ -287,6 +312,11 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
 
   void _clearError() {
     _latestError = null;
+  }
+
+  void _emitIssue(PaginationIssue issue) {
+    _logger.showLog('[${issue.label.name}] ${issue.message}');
+    onIssue?.call(issue);
   }
 
   @override
