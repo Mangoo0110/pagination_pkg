@@ -37,7 +37,8 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
     this.perPageLimit = 10,
     bool shouldLog = false,
     LoggerColor color = LoggerColor.green,
-  }) : _mem = mem, _logger = Logger(log: shouldLog, loggerColor: color) {
+  }) : _mem = mem,
+       _logger = Logger(log: shouldLog, loggerColor: color) {
     if (items != null) _mem.addNextPage(items);
   }
 
@@ -60,7 +61,7 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
   ValueNotifier<PaginationLoadState> get state => _state;
 
   /// Default is set to 10 by the constructor.
-  /// This is the number of items to be fetched per page. You should maintain this number. 
+  /// This is the number of items to be fetched per page. You should maintain this number.
   /// If you return more on the page fetch call, they will be added to the next page
   /// or, previous page or skipped depending on the situation.
   final int perPageLimit;
@@ -73,6 +74,9 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
 
   int get length => _mem.length;
 
+  bool get isEmpty => _mem.isEmpty;
+
+  @Deprecated('Use isEmpty instead.')
   bool get isEmplty => _mem.isEmpty;
 
   void deleteItemAt(int index) => _mem.deleteItemAt(index);
@@ -93,45 +97,46 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
       );
       setError(error: res as PaginationError);
     } else if (res is PaginationPage<ItemUniqueKey, ItemData>) {
-      _logger.showLog("Fetched page: ${res.page}, items-length: ${res.items.length}");
+      _logger.showLog(
+        "Fetched page: ${res.page}, items-length: ${res.items.length}",
+      );
       page = res;
     }
     _lastFetchTime = DateTime.now();
     return page;
   }
 
-
   /// Package does not support the debouncing mechanism anymore, its now up to the developer to handle it.
   void search(String text) async {
     if (state.value == PaginationLoadState.refreshing) {
-        return;
-      }
-      searchText.value = text;
-      setRefresh();
+      return;
+    }
+    searchText.value = text;
+    setRefresh();
 
-      final page = await requestData(
-        onDemandPage: LoadNextPage<ItemData>(
-          limit: perPageLimit,
-          pageNo: 1,
-          cursor: null,
-        ),
-      );
-      _logger.showLog(
-        "Search result for text: $text is page: ${page?.page} with items count: ${page?.items.length}",
-      );
+    final page = await requestData(
+      onDemandPage: LoadNextPage<ItemData>(
+        limit: perPageLimit,
+        pageNo: 1,
+        cursor: null,
+      ),
+    );
+    _logger.showLog(
+      "Search result for text: $text is page: ${page?.page} with items count: ${page?.items.length}",
+    );
 
-      if (page != null) {
-        _logger.showLog("Adding items: ${page.items.length}");
-        _mem.addNextPage(page.items);
-        state.value = PaginationLoadState.loaded;
-      } else if (state.value == PaginationLoadState.error) {
-        notifyListeners();
-        return;
-      } else {
-        _logger.showLog("No items to add.. setting state to nopages");
-        state.value = PaginationLoadState.nopages;
-      }
+    if (page != null) {
+      _logger.showLog("Adding items: ${page.items.length}");
+      _mem.addNextPage(page.items);
+      state.value = PaginationLoadState.loaded;
+    } else if (state.value == PaginationLoadState.error) {
       notifyListeners();
+      return;
+    } else {
+      _logger.showLog("No items to add.. setting state to nopages");
+      state.value = PaginationLoadState.nopages;
+    }
+    notifyListeners();
   }
 
   /// Sets the state to [PaginationLoadState.refreshing]
@@ -217,7 +222,8 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
     // Set state to loading
     state.value = PaginationLoadState.loading;
     // Fetch previous page
-    final res = await requestData( // requestData() methods holds the logic for fetching data
+    final res = await requestData(
+      // requestData() methods holds the logic for fetching data
       onDemandPage: LoadPreviousPage(
         limit: perPageLimit,
         pageNo: _mem.previousPageToFetch,
@@ -243,13 +249,11 @@ class PaginationEngine<ItemUniqueKey, ItemData> extends ChangeNotifier {
     search(searchText.value);
   }
 
-  void upsertItem({
-    required ItemUniqueKey key,
-    required ItemData item,
-  }) {
+  void upsertItem({required ItemUniqueKey key, required ItemData item}) {
     //state.value = PaginationLoadState.loading;
     _mem.upsertItem(key: key, item: item);
     state.value = PaginationLoadState.updated;
+    notifyListeners();
   }
 
   @override
