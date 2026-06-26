@@ -1,7 +1,6 @@
 import 'package:pagination_pkg/src/pagination_engine.dart';
 
 import 'cache/infinity_scroll_pagination_mem.dart';
-import 'cache/multi_page_pagination_mem.dart';
 
 // class MultiPagePaginationController<T> extends PaginationEngine<T> {
 //   MultiPagePaginationController({
@@ -16,8 +15,8 @@ import 'cache/multi_page_pagination_mem.dart';
 //        );
 // }
 
-
-class InfinityScrollPaginationController<ItemUniqueKey, ItemData> extends PaginationEngine<ItemUniqueKey, ItemData> {
+class InfinityScrollPaginationController<ItemUniqueKey, ItemData>
+    extends PaginationEngine<ItemUniqueKey, ItemData> {
   InfinityScrollPaginationController({
     super.items,
     super.perPageLimit,
