@@ -144,7 +144,7 @@ void main() {
 
       expect(requestedPages, [1]);
       expect(controller.length, 1);
-      expect(controller.state.value, PaginationLoadState.allLoaded);
+      expect(controller.state.value, PaginationState.allLoaded);
 
       controller.dispose();
     });
@@ -168,7 +168,7 @@ void main() {
 
       expect(requestedPages, [1]);
       expect(controller.length, 0);
-      expect(controller.state.value, PaginationLoadState.allLoaded);
+      expect(controller.state.value, PaginationState.allLoaded);
 
       controller.dispose();
     });
@@ -205,7 +205,7 @@ void main() {
         expect(controller.latestError?.isCritical, isFalse);
         expect(issues.single.label, PaginationIssueLabel.error);
         expect(issues.single.message, 'Network unavailable');
-        expect(controller.state.value, PaginationLoadState.error);
+        expect(controller.state.value, PaginationState.error);
 
         controller.dispose();
       },
@@ -234,7 +234,7 @@ void main() {
       expect(controller.latestError?.isCritical, isTrue);
       expect(issues.single.label, PaginationIssueLabel.critical);
       expect(issues.single.message, 'Data source changed');
-      expect(controller.state.value, PaginationLoadState.error);
+      expect(controller.state.value, PaginationState.error);
 
       controller.dispose();
     });
@@ -264,7 +264,7 @@ void main() {
 
       expect(controller.latestError, isNull);
       expect(controller.length, 1);
-      expect(controller.state.value, PaginationLoadState.loaded);
+      expect(controller.state.value, PaginationState.loaded);
 
       controller.dispose();
     });
@@ -304,7 +304,7 @@ void main() {
 
       expect(controller.isRequestInFlight, isFalse);
       expect(controller.length, 1);
-      expect(controller.state.value, PaginationLoadState.loaded);
+      expect(controller.state.value, PaginationState.loaded);
 
       controller.dispose();
     });
@@ -364,13 +364,13 @@ void main() {
       controller.dispose();
     });
 
-    test('forwards query through refresh and next page requests', () async {
-      final queries = <String?>[];
+    test('refresh reloads the first page and clears previous items', () async {
+      final requests = <OnDemandPage<String>>[];
       final controller = InfinityScrollPaginationController<int, String>(
         perPageLimit: 2,
         maxCapacityCount: 10,
         onDemandPageCall: ({required onDemandPage}) async {
-          queries.add(onDemandPage.query);
+          requests.add(onDemandPage);
           return PaginationPage<int, String>(
             page: onDemandPage.pageNo,
             items: {onDemandPage.pageNo: 'page-${onDemandPage.pageNo}'},
@@ -378,11 +378,62 @@ void main() {
         },
       );
 
-      await controller.refreshWithQuery('ada');
+      await controller.loadNextPage();
+      await controller.refresh();
+
+      expect(requests.map((request) => request.pageNo), [1, 1]);
+      expect(requests.last.intent, PaginationFetchIntent.initial);
+      expect(requests.last.cursorItem, isNull);
+      expect(controller.items, ['page-1']);
+
+      controller.dispose();
+    });
+
+    test('passes item context to next-page requests', () async {
+      final requests = <OnDemandPage<String>>[];
+      final controller = InfinityScrollPaginationController<int, String>(
+        perPageLimit: 1,
+        maxCapacityCount: 10,
+        onDemandPageCall: ({required onDemandPage}) async {
+          requests.add(onDemandPage);
+          return PaginationPage<int, String>(
+            page: onDemandPage.pageNo,
+            items: {onDemandPage.pageNo: 'item-${onDemandPage.pageNo}'},
+          );
+        },
+      );
+
+      await controller.loadNextPage();
       await controller.loadNextPage();
 
-      expect(controller.searchText.value, 'ada');
-      expect(queries, ['ada', 'ada']);
+      expect(requests[0].intent, PaginationFetchIntent.next);
+      expect(requests[0].cursorItem, isNull);
+
+      expect(requests[1].intent, PaginationFetchIntent.next);
+      expect(requests[1].cursorItem, 'item-1');
+
+      controller.dispose();
+    });
+
+    test('passes cursor item to previous-page requests', () async {
+      final requests = <OnDemandPage<String>>[];
+      final controller = InfinityScrollPaginationController<int, String>(
+        items: const {1: 'item-1', 2: 'item-2'},
+        perPageLimit: 1,
+        maxCapacityCount: 1,
+        onDemandPageCall: ({required onDemandPage}) async {
+          requests.add(onDemandPage);
+          return PaginationPage<int, String>(
+            page: onDemandPage.pageNo,
+            items: {onDemandPage.pageNo: 'item-${onDemandPage.pageNo}'},
+          );
+        },
+      );
+
+      await controller.loadPreviousPage();
+
+      expect(requests.last.intent, PaginationFetchIntent.previous);
+      expect(requests.last.cursorItem, 'item-2');
 
       controller.dispose();
     });

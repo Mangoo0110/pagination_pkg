@@ -12,7 +12,7 @@ class PaginationIssue {
     this.page,
   });
 
-  factory PaginationIssue.fromError(PaginationError error) {
+  factory PaginationIssue.fromError(PaginationError<dynamic, dynamic> error) {
     return PaginationIssue(
       message: error.message,
       label: error.label,
@@ -25,8 +25,19 @@ class PaginationIssue {
   final int? page;
 }
 
+/// A successfully fetched page.
+///
+/// [ItemUniqueKey] is the stable unique key for an item, such as an id, uuid,
+/// slug, or any value that uniquely identifies one [ItemData]. The package uses
+/// this key to update existing items instead of storing duplicates.
 class PaginationPage<ItemUniqueKey, ItemData>
     extends PageFetchResponse<ItemUniqueKey, ItemData> {
+  /// Page items keyed by their stable unique item key.
+  ///
+  /// This is a [Map] instead of a [List] so the in-memory cache can prevent
+  /// duplicate [ItemData] entries across pages. Choosing the right key is the
+  /// caller's responsibility: every logical item should always use the same
+  /// [ItemUniqueKey], even if it appears again in another page response.
   final Map<ItemUniqueKey, ItemData> items;
   final bool? hasMore;
   final int? totalItems;
@@ -46,7 +57,7 @@ class PaginationPage<ItemUniqueKey, ItemData>
 
   @override
   String toString() {
-    return 'PaginationPage(items: $items, page: $page, total: $total, hasMore: $hasMore, totalItems: $totalItems, totalPages: $totalPages)';
+    return 'PaginationPage(page: $page, total: $total, hasMore: $hasMore, totalItems: $totalItems, totalPages: $totalPages)';
   }
 }
 
@@ -54,8 +65,8 @@ class PaginationError<ItemUniqueKey, ItemData>
     extends PageFetchResponse<ItemUniqueKey, ItemData> {
   final String message;
 
-  /// If critical, means previous data is not valid anymore and should be cleared.
-  /// If not critical, previous data is still valid and new data will be added to it.
+  /// If critical, the current in-memory data is considered invalid and should
+  /// be cleared. If not critical, existing in-memory data remains available.
   final bool isCritical;
   PaginationError({
     required super.page,
