@@ -8,7 +8,7 @@ void main() {
   group('InfinityScrollPaginationMem', () {
     test('keeps only maxCapacity items when adding next pages', () {
       var updateCount = 0;
-      final mem = InfinityScrollPaginationMem<int, String>(
+      final mem = InfiniteScrollPaginationMem<int, String>(
         perPageLimit: 2,
         maxCapacity: 3,
         onMemUpdate: () => updateCount++,
@@ -27,7 +27,7 @@ void main() {
     });
 
     test('keeps item order when adding previous pages', () {
-      final mem = InfinityScrollPaginationMem<int, String>(
+      final mem = InfiniteScrollPaginationMem<int, String>(
         perPageLimit: 2,
         maxCapacity: 4,
         onMemUpdate: () {},
@@ -44,7 +44,7 @@ void main() {
     });
 
     test('updates duplicate keys instead of adding duplicate items', () {
-      final mem = InfinityScrollPaginationMem<int, String>(
+      final mem = InfiniteScrollPaginationMem<int, String>(
         perPageLimit: 2,
         maxCapacity: 5,
         onMemUpdate: () {},
@@ -60,7 +60,7 @@ void main() {
     });
 
     test('rebuilds key indexes after delete', () {
-      final mem = InfinityScrollPaginationMem<int, String>(
+      final mem = InfiniteScrollPaginationMem<int, String>(
         perPageLimit: 2,
         maxCapacity: 5,
         onMemUpdate: () {},
@@ -76,7 +76,7 @@ void main() {
     });
 
     test('returns null for out of range reads', () {
-      final mem = InfinityScrollPaginationMem<int, String>(
+      final mem = InfiniteScrollPaginationMem<int, String>(
         perPageLimit: 2,
         maxCapacity: 5,
         onMemUpdate: () {},
@@ -92,7 +92,7 @@ void main() {
 
     test('notifies when updating and upserting items', () {
       var updateCount = 0;
-      final mem = InfinityScrollPaginationMem<int, String>(
+      final mem = InfiniteScrollPaginationMem<int, String>(
         perPageLimit: 2,
         maxCapacity: 5,
         onMemUpdate: () => updateCount++,
@@ -109,7 +109,7 @@ void main() {
     });
 
     test('returns read-only item snapshots in display order', () {
-      final mem = InfinityScrollPaginationMem<int, String>(
+      final mem = InfiniteScrollPaginationMem<int, String>(
         perPageLimit: 2,
         maxCapacity: 5,
         onMemUpdate: () {},
@@ -125,7 +125,7 @@ void main() {
   group('InfinityScrollPaginationController', () {
     test('stops loading next pages when response hasMore is false', () async {
       final requestedPages = <int>[];
-      final controller = InfinityScrollPaginationController<int, String>(
+      final controller = InfiniteScrollPaginationController<int, String>(
         perPageLimit: 2,
         maxCapacityCount: 10,
         onDemandPageCall: ({required onDemandPage}) async {
@@ -151,7 +151,7 @@ void main() {
 
     test('keeps empty page as a terminal page', () async {
       final requestedPages = <int>[];
-      final controller = InfinityScrollPaginationController<int, String>(
+      final controller = InfiniteScrollPaginationController<int, String>(
         perPageLimit: 2,
         maxCapacityCount: 10,
         onDemandPageCall: ({required onDemandPage}) async {
@@ -178,7 +178,7 @@ void main() {
       () async {
         var callCount = 0;
         final issues = <PaginationIssue>[];
-        final controller = InfinityScrollPaginationController<int, String>(
+        final controller = InfiniteScrollPaginationController<int, String>(
           perPageLimit: 2,
           maxCapacityCount: 10,
           onIssue: issues.add,
@@ -213,7 +213,7 @@ void main() {
 
     test('clears previous items on critical errors', () async {
       final issues = <PaginationIssue>[];
-      final controller = InfinityScrollPaginationController<int, String>(
+      final controller = InfiniteScrollPaginationController<int, String>(
         items: const {1: 'one'},
         perPageLimit: 2,
         maxCapacityCount: 10,
@@ -241,7 +241,7 @@ void main() {
 
     test('clears latest error after a successful page load', () async {
       var callCount = 0;
-      final controller = InfinityScrollPaginationController<int, String>(
+      final controller = InfiniteScrollPaginationController<int, String>(
         perPageLimit: 2,
         maxCapacityCount: 10,
         onDemandPageCall: ({required onDemandPage}) async {
@@ -273,7 +273,7 @@ void main() {
       var callCount = 0;
       final completer = Completer<PageFetchResponse<int, String>>();
       final issues = <PaginationIssue>[];
-      final controller = InfinityScrollPaginationController<int, String>(
+      final controller = InfiniteScrollPaginationController<int, String>(
         perPageLimit: 2,
         maxCapacityCount: 10,
         onIssue: issues.add,
@@ -313,7 +313,7 @@ void main() {
       'emits an info issue when loading after all pages are loaded',
       () async {
         final issues = <PaginationIssue>[];
-        final controller = InfinityScrollPaginationController<int, String>(
+        final controller = InfiniteScrollPaginationController<int, String>(
           perPageLimit: 2,
           maxCapacityCount: 10,
           onIssue: issues.add,
@@ -340,7 +340,7 @@ void main() {
     );
 
     test('exposes read-only items for app-side filtering', () async {
-      final controller = InfinityScrollPaginationController<int, String>(
+      final controller = InfiniteScrollPaginationController<int, String>(
         perPageLimit: 3,
         maxCapacityCount: 10,
         onDemandPageCall: ({required onDemandPage}) async {
@@ -366,7 +366,7 @@ void main() {
 
     test('refresh reloads the first page and clears previous items', () async {
       final requests = <OnDemandPage<String>>[];
-      final controller = InfinityScrollPaginationController<int, String>(
+      final controller = InfiniteScrollPaginationController<int, String>(
         perPageLimit: 2,
         maxCapacityCount: 10,
         onDemandPageCall: ({required onDemandPage}) async {
@@ -391,7 +391,7 @@ void main() {
 
     test('passes item context to next-page requests', () async {
       final requests = <OnDemandPage<String>>[];
-      final controller = InfinityScrollPaginationController<int, String>(
+      final controller = InfiniteScrollPaginationController<int, String>(
         perPageLimit: 1,
         maxCapacityCount: 10,
         onDemandPageCall: ({required onDemandPage}) async {
@@ -417,7 +417,7 @@ void main() {
 
     test('passes cursor item to previous-page requests', () async {
       final requests = <OnDemandPage<String>>[];
-      final controller = InfinityScrollPaginationController<int, String>(
+      final controller = InfiniteScrollPaginationController<int, String>(
         items: const {1: 'item-1', 2: 'item-2'},
         perPageLimit: 1,
         maxCapacityCount: 1,

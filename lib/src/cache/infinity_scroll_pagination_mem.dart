@@ -2,9 +2,9 @@ import 'dart:math';
 
 import 'pagination_mem.dart';
 
-class InfinityScrollPaginationMem<ItemUniqueKey, ItemData>
+class InfiniteScrollPaginationMem<ItemUniqueKey, ItemData>
     extends PaginationMem<ItemUniqueKey, ItemData> {
-  InfinityScrollPaginationMem({
+  InfiniteScrollPaginationMem({
     required super.perPageLimit,
     required super.onMemUpdate,
     required this.maxCapacity,
